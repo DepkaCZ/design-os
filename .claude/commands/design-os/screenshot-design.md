@@ -50,17 +50,79 @@ After starting the server, wait a few seconds for it to be ready before navigati
 
 Use the Playwright MCP tool to navigate to the screen design and capture a screenshot.
 
-The screen design URL pattern is: `http://localhost:3000/sections/[section-id]/screen-designs/[screen-design-name]`
+The screen design URL pattern is: `http://localhost:3000/sections/[section-id]/screen-designs/[screen-design-name]/fullscreen`
 
-1. First, use `browser_navigate` to go to the screen design URL
-2. Wait for the page to fully load
-3. **Click the "Hide" link** in the navigation bar to hide it before taking the screenshot. The Hide button has the attribute `data-hide-header` which you can use to locate it.
-4. Use `browser_take_screenshot` to capture the page (without the navigation bar)
+Note: Use the `/fullscreen` suffix to get the screen design with the app shell but without the Design OS navigation chrome.
 
-**Screenshot specifications:**
-- Capture at desktop viewport width (1280px recommended)
-- Use **full page screenshot** to capture the entire scrollable content (not just the viewport)
+### Screenshot Capture Process
+
+1. **Navigate to the screen design URL** using `browser_navigate`
+
+2. **Wait for page to load** - wait 2 seconds after navigation for content to render
+
+3. **CRITICAL: Hide the scrollbar before capturing**
+
+   The browser reserves space for the scrollbar (typically 15px) which can cause content to appear cut off on the right edge. Before each screenshot, inject CSS to hide the scrollbar:
+
+   ```javascript
+   // Use browser_evaluate to inject this script
+   () => {
+     let style = document.getElementById('screenshot-scrollbar-fix');
+     if (!style) {
+       style = document.createElement('style');
+       style.id = 'screenshot-scrollbar-fix';
+       style.textContent = `
+         html, body {
+           scrollbar-width: none !important;
+           -ms-overflow-style: none !important;
+         }
+         html::-webkit-scrollbar, body::-webkit-scrollbar {
+           display: none !important;
+           width: 0 !important;
+           height: 0 !important;
+         }
+       `;
+       document.head.appendChild(style);
+     }
+   }
+   ```
+
+4. **Set the theme (light/dark)** before capturing:
+
+   ```javascript
+   // For light mode:
+   () => {
+     localStorage.setItem('theme', 'light');
+     document.documentElement.classList.remove('dark');
+   }
+
+   // For dark mode:
+   () => {
+     localStorage.setItem('theme', 'dark');
+     document.documentElement.classList.add('dark');
+   }
+   ```
+
+5. **Capture the screenshot** using `browser_take_screenshot` with `fullPage: true`
+
+6. **Verify the screenshot** - check for visual issues like missing elements, text overlap, cut-off content on the right edge, and proper alignment
+
+### Screenshot Specifications
+
+**Viewport sizes:**
+- Mobile: 375x812 (iPhone-sized)
+- Desktop: 1280x800
+
+**Capture all 4 variants for each screen:**
+1. `[ScreenDesignName]-mobile-light.png`
+2. `[ScreenDesignName]-mobile-dark.png`
+3. `[ScreenDesignName]-desktop-light.png`
+4. `[ScreenDesignName]-desktop-dark.png`
+
+**Settings:**
+- Use `fullPage: true` to capture the entire scrollable content
 - PNG format for best quality
+- Always inject the scrollbar-hide CSS before capturing
 
 When using `browser_take_screenshot`, set `fullPage: true` to capture the entire page including content below the fold.
 
@@ -98,12 +160,11 @@ The screenshot captures the **[ScreenDesignName]** screen design for the **[Sect
 If they want additional screenshots (e.g., dark mode, different states):
 
 "Would you like me to capture any additional screenshots? For example:
-- Dark mode version
-- Mobile viewport
 - Different states (empty, loading, etc.)"
 
 ## Important Notes
 
+- If there are any dev servers started, kill them before capturing screenshots
 - Start the dev server yourself - do not ask the user to do it
 - Screenshots are saved to `product/sections/[section-id]/` alongside spec.md and data.json
 - Use descriptive filenames that indicate the screen design and any variant (dark mode, mobile, etc.)
